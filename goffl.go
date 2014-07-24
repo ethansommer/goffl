@@ -22,26 +22,29 @@ func main() {
 	
 	
 	players := make([]Player, 1000)
+	numteams:=12
+	ppr:=1.0
+	//ppr:=0
 
 	
 	qbsstring:=getURL("http://www.fantasypros.com/nfl/projections/qb.php?export=xls")
-	qbplayernum:=getPos(qbsstring,players,10,0)
+	qbplayernum:=getPos(qbsstring,players,"QB",ppr,numteams,0)
 	fmt.Printf("%d qbs imported\n", qbplayernum)
 	
 	rbsstring:=getURL("http://www.fantasypros.com/nfl/projections/rb.php?export=xls")
-	rbplayernum:=getPos(rbsstring,players,25,qbplayernum)
+	rbplayernum:=getPos(rbsstring,players,"RB",ppr,numteams*3,qbplayernum)
 	fmt.Printf("%d rbs imported\n", rbplayernum-qbplayernum)
 
 	wrsstring:=getURL("http://www.fantasypros.com/nfl/projections/wr.php?export=xls")
-	wrplayernum:=getPos(wrsstring,players,25,rbplayernum)
+	wrplayernum:=getPos(wrsstring,players,"WR",ppr,numteams*3,rbplayernum)
 	fmt.Printf("%d wrs imported\n", wrplayernum-rbplayernum)
 	
 	tesstring:=getURL("http://www.fantasypros.com/nfl/projections/te.php?export=xls")
-	teplayernum:=getPos(tesstring,players,10,wrplayernum)
+	teplayernum:=getPos(tesstring,players,"TE",ppr,numteams,wrplayernum)
 	fmt.Printf("%d tes imported\n", teplayernum-wrplayernum)
 	
 	ksstring:=getURL("http://www.fantasypros.com/nfl/projections/k.php?export=xls")
-	kplayernum:=getPos(ksstring,players,10,teplayernum)
+	kplayernum:=getPos(ksstring,players,"K ",ppr,numteams,teplayernum)
 	fmt.Printf("%d ks imported\n", kplayernum-teplayernum)
 	
 	sort(players)
@@ -50,13 +53,17 @@ func main() {
 }
 
 func printlist(players []Player) {
+	rank:=0
 	for _, player := range players {
-		if (len(player.name)>0) {
-			fmt.Printf("%25s %s\n",player.name,player.team)
+		if (len(player.name)>0 && rank<200) {
+			rank++
+			fmt.Printf("%3d %25s %3s %s %.1f\n",rank,player.name,player.team,player.position,player.posvalue)
 		}
 
 	}
 }
+
+
 func sort(players []Player) {
 	for a:=0; a<len(players); a++ {
 		for b:=0; b<len(players); b++ {
@@ -80,30 +87,43 @@ func toFloat(strfloat string) float64{
 	return retval
 }
 
-func getPos(qbs string,players []Player, numstarting int, playernum int) int{
+func getPos(qbs string,players []Player, position string, ppr float64, numstarting int, playernum int) int{
 	var (
 		lines []string
 		columns []string
 		fptscolumn int
+		reccolumn int
 	)
+	reccolumn=-1
 	origplayernum:=playernum
 	lines=strings.Split(qbs,"\n")
 	for _, line := range lines {
 		if (strings.HasPrefix(line, "Player Name")) {
 			//this is the header line
+			fmt.Printf("%f %s\n",ppr, line)
+
 			columns=strings.Split(line,"\t")
 			for index, column := range columns {
 				if (strings.HasPrefix(column,"fpts")) {
 					fptscolumn=index
 				}
+				if (strings.HasPrefix(column,"rec_att")) {
+					reccolumn=index
+				}
 			}
 		} else if (len(line)>40) {
+			
 			fmt.Printf("%d %s\n",playernum,line)
 			columns=strings.Split(line,"\t")
 			players[playernum].name=columns[0]
 			players[playernum].team=columns[1]
-			players[playernum].position="QB"
-			players[playernum].fpts=toFloat(columns[fptscolumn])
+			players[playernum].position=position
+			if (reccolumn==-1) {
+				players[playernum].fpts=toFloat(columns[fptscolumn])
+			} else {
+				players[playernum].fpts=toFloat(columns[fptscolumn])+(toFloat(columns[reccolumn])*ppr)
+
+			}
 			playernum++
 		}
 	}
